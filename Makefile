@@ -49,6 +49,11 @@ test : all-classes
 	@echo
 	java conformance.ConformanceTests
 
+# Run unit tests only
+unit : all-classes
+	java -cp $(UNITCLASSPATH) unit.UnitTests
+	@echo
+
 # Delete all intermediate and final output and leave only the source.
 .PHONY : clean
 clean :
