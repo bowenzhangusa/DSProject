@@ -27,8 +27,9 @@ public class StubTest extends Test
     /** Test notice. */
     public static final String  notice = "checking stub public interface";
     /** Prerequisites. */
+    // TODO: uncomment after server side will be implemented
     public static final Class[] prerequisites = new Class[]
-        {SkeletonTest.class};
+        {/*SkeletonTest.class*/};
 
     /** Socket address used for the creation of stubs. */
     private InetSocketAddress           address;
