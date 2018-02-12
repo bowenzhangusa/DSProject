@@ -186,13 +186,13 @@ public abstract class Stub {
             Object result = null;
 
             try {
-                byte[] bytes = Serializer.toBytes(proxy.getClass(), method.getName(), args);
                 Socket sock = new Socket(
                         this.remoteAddress.getAddress(),
                         this.remoteAddress.getPort()
                 );
-                OutputStream socketOutputStream = sock.getOutputStream();
-                socketOutputStream.write(bytes);
+                ObjectOutputStream socketOutputStream = new ObjectOutputStream(sock.getOutputStream());
+                RMICallInfo data = new RMICallInfo(proxy.getClass().getCanonicalName(), method.getName(), args);
+                socketOutputStream.writeObject(data);
                 socketOutputStream.flush();
 
                 ObjectInputStream inputStream = new ObjectInputStream(sock.getInputStream());

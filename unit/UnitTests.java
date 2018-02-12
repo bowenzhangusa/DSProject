@@ -24,7 +24,6 @@ public class UnitTests {
                 new Class[]{
                         //rmi.SampleUnitTest.class,
                         rmi.StubUnitTest.class,
-                        rmi.SerializerUnitTest.class,
                         };
         Series series = new Series(tests);
         SeriesReport report = series.run(3, System.out);
