@@ -8,12 +8,6 @@ import java.util.HashMap;
  * and vice versa.
  */
 class Serializer {
-    static class RMICallInfo {
-        public String className;
-        public String methodName;
-        public Object[] args;
-    }
-
     public static byte[] toBytes(Class c, String method, Object[] args) throws RMIException {
         HashMap<String, Object> data = new HashMap<String, Object>();
         data.put("class", c.getCanonicalName());
