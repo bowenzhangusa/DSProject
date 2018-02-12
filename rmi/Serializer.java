@@ -14,7 +14,7 @@ class Serializer {
         public Object[] args;
     }
 
-    public static byte[] toBytes(Class c, String method, Object[] args) {
+    public static byte[] toBytes(Class c, String method, Object[] args) throws RMIException {
         HashMap<String, Object> data = new HashMap<String, Object>();
         data.put("class", c.getCanonicalName());
         data.put("method", method);
@@ -27,20 +27,18 @@ class Serializer {
             out.writeObject(data);
             out.flush();
             return bos.toByteArray();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (Throwable e) {
+            throw new RMIException("Could not serialize object to bytes");
         } finally {
             try {
                 bos.close();
             } catch (IOException ex) {
             }
         }
-
-        return null;
     }
 
     @SuppressWarnings("unchecked")
-    public static RMICallInfo fromBytes(byte[] bytes) {
+    public static RMICallInfo fromBytes(byte[] bytes) throws RMIException  {
         ByteArrayInputStream bis = new ByteArrayInputStream(bytes);
         ObjectInput in = null;
         RMICallInfo data = new RMICallInfo();
@@ -53,8 +51,8 @@ class Serializer {
             data.methodName = (String) map.get("method");
 
             return data;
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (Throwable e) {
+            throw new RMIException("Could not deserialize object from bytes");
         } finally {
             try {
                 if (in != null) {
@@ -63,7 +61,5 @@ class Serializer {
             } catch (IOException ex) {
             }
         }
-
-        return null;
     }
 }

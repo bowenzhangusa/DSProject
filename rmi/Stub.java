@@ -1,14 +1,13 @@
 package rmi;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutput;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.*;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
+import java.util.Objects;
 
 /**
  * RMI stub factory.
@@ -56,8 +55,20 @@ public abstract class Stub {
      */
     public static <T> T create(Class<T> c, Skeleton<T> skeleton)
     throws UnknownHostException {
-        // TODO
-        return createObject(c, null);
+        if (c == null || skeleton == null) {
+            throw new NullPointerException("All agruments are required");
+        }
+
+        if (skeleton.getAddress() == null) {
+            throw new IllegalStateException("Skeleton must have an address");
+        }
+
+        // TODO: how to check for UnknownHostException?
+        /*if (skeleton.getAddress().isUnresolved()) {
+            throw new UnknownHostException("Unknown skeleton host");
+        }*/
+
+        return createObject(c, skeleton.getAddress());
     }
 
     /**
@@ -93,13 +104,15 @@ public abstract class Stub {
      */
     public static <T> T create(Class<T> c, Skeleton<T> skeleton,
             String hostname) {
-        try {
-            return createObject(c, InetAddress.getByName(hostname));
-        } catch (UnknownHostException e) {
-            //TODO
-            e.printStackTrace();
-            return null;
+        if (c == null || skeleton == null || hostname == null) {
+            throw new NullPointerException("All agruments are required");
         }
+
+        if (skeleton.getAddress() == null) {
+            throw new IllegalStateException("Skeleton does not have an address");
+        }
+
+        return createObject(c, InetSocketAddress.createUnresolved(hostname, skeleton.getAddress().getPort()));
     }
 
     /**
@@ -121,26 +134,129 @@ public abstract class Stub {
      *                              this interface cannot be dynamically created.
      */
     public static <T> T create(Class<T> c, InetSocketAddress address) {
-        return createObject(c, address.getAddress());
+        if (c == null || address == null) {
+            throw new NullPointerException("All arguments are required");
+        }
+
+        return createObject(c, address);
     }
 
     /**
      * Stub object proxy
      */
     private static class StubInvocationHandler
-            implements InvocationHandler {
-        protected InetAddress remoteAddress;
+            implements InvocationHandler, Serializable {
+        protected InetSocketAddress remoteAddress;
+        protected Class originalClass;
 
-        public StubInvocationHandler(InetAddress addr) {
+        /**
+         * Implementation of "equals" and "hashcode"
+         * is based on an article
+         * https://javaclippings.wordpress.com/2009/03/18/dynamic-proxies-equals-hashcode-tostring/
+         */
+        private static final Method OBJECT_EQUALS =
+                getObjectMethod("equals", Object.class);
+
+        private static final Method OBJECT_HASHCODE =
+                getObjectMethod("hashCode");
+
+        private static final Method OBJECT_TOSTRING =
+                getObjectMethod("toString");
+
+
+        public <T> StubInvocationHandler(InetSocketAddress addr, Class<T> c) {
             this.remoteAddress = addr;
+            this.originalClass = c;
         }
 
+        /**
+         * Performs a method - either a local one (equals, hashcode, or toString),
+         * or remote one, by sending method and arguments over the socket.
+         */
         public Object invoke(Object proxy, Method method, Object[] args)
         throws Throwable {
-            byte[] bytes = Serializer.toBytes(proxy.getClass(), method.getName(), args);
-            // TODO: send bytes to server
+            if (method.equals(OBJECT_EQUALS)) {
+                return equalsInternal(args[0], proxy);
+            } else if (method.equals(OBJECT_HASHCODE)) {
+                return hashcodeInternal();
+            } else if (method.equals(OBJECT_TOSTRING)) {
+                return toString();
+            }
 
-            return null;
+            Object result = null;
+
+            try {
+                byte[] bytes = Serializer.toBytes(proxy.getClass(), method.getName(), args);
+                Socket sock = new Socket(
+                        this.remoteAddress.getAddress(),
+                        this.remoteAddress.getPort()
+                );
+                OutputStream socketOutputStream = sock.getOutputStream();
+                socketOutputStream.write(bytes);
+                socketOutputStream.flush();
+
+                ObjectInputStream inputStream = new ObjectInputStream(sock.getInputStream());
+                result = inputStream.readObject();
+
+                inputStream.close();
+                sock.close();
+            } catch (Throwable ex) {
+                throw new RMIException("Could not perform RMI", ex);
+            }
+
+            if (result != null && result instanceof Throwable) {
+                throw (Throwable) result;
+            }
+
+            return result;
+        }
+
+        private static Method getObjectMethod(String name, Class... types) {
+            try {
+                return Object.class.getMethod(name, types);
+            } catch (NoSuchMethodException e) {
+                throw new IllegalArgumentException(e);
+            }
+        }
+
+        /**
+         * Implementation of "equals" for a stub
+         */
+        private boolean equalsInternal(Object other, Object proxy) {
+            if (other == null) {
+                return false;
+            }
+
+            if (other.getClass() != proxy.getClass()) {
+                return false;
+            }
+
+            StubInvocationHandler otherProxy = (StubInvocationHandler) Proxy.getInvocationHandler(other);
+
+            if (otherProxy.remoteAddress != null && this.remoteAddress != null) {
+                if (!otherProxy.remoteAddress.equals(this.remoteAddress)) {
+                    return false;
+                }
+            } else if (otherProxy.remoteAddress != this.remoteAddress) {
+                return false;
+            }
+
+            if (!otherProxy.originalClass.equals(this.originalClass)) {
+                return false;
+            }
+
+            return true;
+        }
+
+        private int hashcodeInternal() {
+            return Objects.hash(
+                    this.remoteAddress != null ? this.remoteAddress.hashCode() : null,
+                    this.originalClass.getCanonicalName());
+        }
+
+        @Override
+        public String toString() {
+            return this.originalClass.getCanonicalName() + " at " + this.remoteAddress;
         }
     }
 
@@ -148,12 +264,38 @@ public abstract class Stub {
      * Creates a stub object for given class
      */
     @SuppressWarnings("unchecked")
-    private static <T> T createObject(Class<T> c, InetAddress addr) {
+    private static <T> T createObject(Class<T> c, InetSocketAddress addr) {
+        validateClass(c);
         T obj = (T) Proxy.newProxyInstance(
                 c.getClassLoader(),
                 new Class[]{c},
-                new StubInvocationHandler(addr));
+                new StubInvocationHandler(addr, c));
 
         return obj;
+    }
+
+    /**
+     * Checks whether all public methods of class
+     * throw RMIException
+     */
+    private static <T> void validateClass(Class<T> c) {
+        for (Method m : c.getDeclaredMethods()) {
+            if (!Modifier.isPublic(m.getModifiers())) {
+                continue;
+            }
+
+            boolean throwsRMI = false;
+
+            for (Class ex : m.getExceptionTypes()) {
+                if (ex.equals(RMIException.class)) {
+                    throwsRMI = true;
+                    break;
+                }
+            }
+
+            if (!throwsRMI) {
+                throw new Error("Some methods of class do not throw RMI exception");
+            }
+        }
     }
 }
