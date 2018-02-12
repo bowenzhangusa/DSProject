@@ -29,7 +29,7 @@ public class SerializerUnitTest extends Test {
             throw new TestFailed("Serializable call must be converted to bytes");
         }
 
-        Serializer.RMICallInfo unserialized = null;
+        RMICallInfo unserialized = null;
         try {
             unserialized = Serializer.fromBytes(bytes);
         } catch (RMIException e) {
@@ -72,7 +72,7 @@ public class SerializerUnitTest extends Test {
             throw new TestFailed("Serializable call must be converted to bytes");
         }
 
-        Serializer.RMICallInfo unserialized = null;
+        RMICallInfo unserialized = null;
         try {
             unserialized = Serializer.fromBytes(bytes);
         } catch (RMIException e) {
