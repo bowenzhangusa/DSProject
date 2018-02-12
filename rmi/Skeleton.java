@@ -1,5 +1,7 @@
 package rmi;
 
+import java.lang.Error;
+import java.lang.NullPointerException;
 import java.net.*;
 
 /**
@@ -48,8 +50,61 @@ public class Skeleton<T> {
      * @throws NullPointerException If either of <code>c</code> or
      *                              <code>server</code> is <code>null</code>.
      */
-    public Skeleton(Class<T> c, T server) {
-        //throw new UnsupportedOperationException("not implemented");
+
+/** RMI skeleton
+
+    <p>
+    A skeleton encapsulates a multithreaded TCP server. The server's clients are
+    intended to be RMI stubs created using the <code>Stub</code> class.
+
+    <p>
+    The skeleton class is parametrized by a type variable. This type variable
+    should be instantiated with an interface. The skeleton will accept from the
+    stub requests for calls to the methods of this interface. It will then
+    forward those requests to an object. The object is specified when the
+    skeleton is constructed, and must implement the remote interface. Each
+    method in the interface should be marked as throwing
+    <code>RMIException</code>, in addition to any other exceptions that the user
+    desires.
+
+    <p>
+    Exceptions may occur at the top level in the listening and service threads.
+    The skeleton's response to these exceptions can be customized by deriving
+    a class from <code>Skeleton</code> and overriding <code>listen_error</code>
+    or <code>service_error</code>.
+*/
+public class Skeleton<T>
+{
+    private Class<T> klass;
+    private T server;
+    private InetSocketAddress address;
+    /** Creates a <code>Skeleton</code> with no initial server address. The
+        address will be determined by the system when <code>start</code> is
+        called. Equivalent to using <code>Skeleton(null)</code>.
+
+        <p>
+        This constructor is for skeletons that will not be used for
+        bootstrapping RMI - those that therefore do not require a well-known
+        port.
+
+        @param c An object representing the class of the interface for which the
+                 skeleton server is to handle method call requests.
+        @param server An object implementing said interface. Requests for method
+                      calls are forwarded by the skeleton to this object.
+        @throws Error If <code>c</code> does not represent a remote interface -
+                      an interface whose methods are all marked as throwing
+                      <code>RMIException</code>.
+        @throws NullPointerException If either of <code>c</code> or
+                                     <code>server</code> is <code>null</code>.
+     */
+    public Skeleton(Class<T> c, T server)
+    {
+        if (c == null || server == null) {
+            throw new NullPointerException("All arguments are required");
+        }
+
+        this.klass = c;
+        this.server = server;
     }
 
     /**
@@ -71,8 +126,19 @@ public class Skeleton<T> {
      * @throws NullPointerException If either of <code>c</code> or
      *                              <code>server</code> is <code>null</code>.
      */
-    public Skeleton(Class<T> c, T server, InetSocketAddress address) {
-        //throw new UnsupportedOperationException("not implemented");
+
+    public Skeleton(Class<T> c, T server, InetSocketAddress address)
+    {
+        if (c == null || server == null || address == null) {
+            throw new NullPointerException("All arguments are required");
+        }
+
+        if (!Remote.class.isAssignableFrom(c)) {
+            throw new Error("class doesn't implement remote interface");
+        }
+
+        this.klass = c;
+        this.server = server;
         this.address = address;
     }
 
@@ -143,9 +209,22 @@ public class Skeleton<T> {
      *                      or when the server has already been started and has
      *                      not since stopped.
      */
-    public synchronized void start() throws RMIException {
-        // TODO this is only for testing, replace this with actual implementation
-        this.address = InetSocketAddress.createUnresolved("localhost", 1);
+    public synchronized void start() throws RMIException
+    {
+        try{
+            int serverPort = this.address.getPort();
+            ServerSocket listenSocket = new ServerSocket(serverPort);
+
+            // Server will start listening on the port
+            while(true) {
+                Socket clientSocket = listenSocket.accept();
+                Connection connection = new Connection(clientSocket);
+            }
+        }
+        catch(IOException e) {
+            System.out.println("Listen :"+e.getMessage());
+        }
+
     }
 
     /**
@@ -165,5 +244,31 @@ public class Skeleton<T> {
 
     public InetSocketAddress getAddress() {
         return address;
+    }
+
+    class Connection extends Thread {
+        ObjectInputStream input;
+        ObjectOutputStream output;
+        Socket clientSocket;
+
+        public Connection (Socket socket) {
+            try {
+                clientSocket = socket;
+                output = new ObjectOutputStream(clientSocket.getOutputStream());
+                input = new ObjectInputStream(clientSocket.getInputStream());
+                this.start();
+            }
+            catch(IOException e) {
+                System.out.println("Connection:"+e.getMessage());
+            }
+        }
+
+        public void run() {
+            // This is the part we parse the arguments and make method call
+
+            /*
+            waiting for some changes in the Serializable interface
+             */
+        }
     }
 }
