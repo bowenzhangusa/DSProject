@@ -3,6 +3,9 @@ package rmi;
 import java.lang.Error;
 import java.lang.NullPointerException;
 import java.net.*;
+import java.io.*;
+import java.rmi.Remote;
+import java.lang.reflect.*;
 
 /**
  * RMI skeleton
@@ -28,8 +31,6 @@ import java.net.*;
  * or <code>service_error</code>.
  */
 public class Skeleton<T> {
-    private InetSocketAddress address;
-
     /**
      * Creates a <code>Skeleton</code> with no initial server address. The
      * address will be determined by the system when <code>start</code> is
@@ -73,8 +74,6 @@ public class Skeleton<T> {
     a class from <code>Skeleton</code> and overriding <code>listen_error</code>
     or <code>service_error</code>.
 */
-public class Skeleton<T>
-{
     private Class<T> klass;
     private T server;
     private InetSocketAddress address;
@@ -266,9 +265,45 @@ public class Skeleton<T>
         public void run() {
             // This is the part we parse the arguments and make method call
 
-            /*
-            waiting for some changes in the Serializable interface
-             */
+            try {
+                RMICallInfo info = (RMICallInfo) input.readObject();
+                Class<?> klass = Class.forName(info.className);
+                Object obj = klass.newInstance();
+
+                Method[] allMethods = klass.getDeclaredMethods();
+                for (Method m : allMethods) {
+                    String mname = m.getName();
+                    // check if the method name matches the current method name
+                    if (!mname.equals(info.methodName)) continue;
+
+                    // Check if the number of parameters match
+                    Type[] pType = m.getGenericParameterTypes();
+                    if (pType.length != info.args.length) continue;
+
+
+                    try {
+                        Object o = m.invoke(obj, info.args);
+                        output.writeObject(o);
+                        output.flush();
+                        // Handle any exceptions thrown by method to be invoked.
+                    } catch (InvocationTargetException x) {
+                        // we need to throw RMI exception
+                        // TODO: throwing meaningful RMI Exception
+                    }
+                }
+            }
+            catch (IOException ex) {
+                System.out.println("input read failed");
+            }
+            catch (ClassNotFoundException ex) {
+                System.out.println("This should never happen since we write our own RMICallInfo class");
+            }
+            catch (IllegalAccessException ex) {
+                System.out.println("cannot access the object");
+            }
+            catch (InstantiationException ex) {
+                System.out.println("cannot instantiate object");
+            }
         }
     }
 }
