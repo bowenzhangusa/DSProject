@@ -267,8 +267,7 @@ public class Skeleton<T> {
 
             try {
                 RMICallInfo info = (RMICallInfo) input.readObject();
-                Class<?> klass = Class.forName(info.className);
-                Object obj = klass.newInstance();
+                //Class<?> klass = Class.forName(info.className);
 
                 Method[] allMethods = klass.getDeclaredMethods();
                 for (Method m : allMethods) {
@@ -282,7 +281,7 @@ public class Skeleton<T> {
 
 
                     try {
-                        Object o = m.invoke(obj, info.args);
+                        Object o = m.invoke(server, info.args);
                         output.writeObject(o);
                         output.flush();
                         // Handle any exceptions thrown by method to be invoked.
@@ -300,9 +299,6 @@ public class Skeleton<T> {
             }
             catch (IllegalAccessException ex) {
                 System.out.println("cannot access the object");
-            }
-            catch (InstantiationException ex) {
-                System.out.println("cannot instantiate object");
             }
         }
     }
