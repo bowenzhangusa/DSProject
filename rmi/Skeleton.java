@@ -104,6 +104,7 @@ public class Skeleton<T> {
 
         this.klass = c;
         this.server = server;
+        this.address = new InetSocketAddress(7000);
     }
 
     /**
@@ -210,19 +211,7 @@ public class Skeleton<T> {
      */
     public synchronized void start() throws RMIException
     {
-        try{
-            int serverPort = this.address.getPort();
-            ServerSocket listenSocket = new ServerSocket(serverPort);
-
-            // Server will start listening on the port
-            while(true) {
-                Socket clientSocket = listenSocket.accept();
-                Connection connection = new Connection(clientSocket);
-            }
-        }
-        catch(IOException e) {
-            System.out.println("Listen :"+e.getMessage());
-        }
+        new Thread(new Listener(this.address)).start();
 
     }
 
@@ -245,7 +234,31 @@ public class Skeleton<T> {
         return address;
     }
 
-    class Connection extends Thread {
+
+    private class Listener implements Runnable {
+        private InetSocketAddress listeningAddress;
+
+        public Listener(InetSocketAddress addr) {
+            this.listeningAddress = addr;
+        }
+
+        public void run() {
+            try{
+                int serverPort = this.listeningAddress.getPort();
+                ServerSocket listenSocket = new ServerSocket(serverPort);
+
+                // Server will start listening on the port
+                while(true) {
+                    Socket clientSocket = listenSocket.accept();
+                    Connection connection = new Connection(clientSocket);
+                }
+            }
+            catch(IOException e) {
+                System.out.println("Listen :"+e.getMessage());
+            }
+        }
+    }
+    private class Connection extends Thread {
         ObjectInputStream input;
         ObjectOutputStream output;
         Socket clientSocket;
