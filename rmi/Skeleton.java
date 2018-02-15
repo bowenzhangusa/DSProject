@@ -4,7 +4,6 @@ import java.lang.Error;
 import java.lang.NullPointerException;
 import java.net.*;
 import java.io.*;
-import java.rmi.Remote;
 import java.lang.reflect.*;
 
 /**
@@ -52,60 +51,69 @@ public class Skeleton<T> {
      *                              <code>server</code> is <code>null</code>.
      */
 
-/** RMI skeleton
-
-    <p>
-    A skeleton encapsulates a multithreaded TCP server. The server's clients are
-    intended to be RMI stubs created using the <code>Stub</code> class.
-
-    <p>
-    The skeleton class is parametrized by a type variable. This type variable
-    should be instantiated with an interface. The skeleton will accept from the
-    stub requests for calls to the methods of this interface. It will then
-    forward those requests to an object. The object is specified when the
-    skeleton is constructed, and must implement the remote interface. Each
-    method in the interface should be marked as throwing
-    <code>RMIException</code>, in addition to any other exceptions that the user
-    desires.
-
-    <p>
-    Exceptions may occur at the top level in the listening and service threads.
-    The skeleton's response to these exceptions can be customized by deriving
-    a class from <code>Skeleton</code> and overriding <code>listen_error</code>
-    or <code>service_error</code>.
-*/
+    /**
+     * RMI skeleton
+     * <p>
+     * <p>
+     * A skeleton encapsulates a multithreaded TCP server. The server's clients are
+     * intended to be RMI stubs created using the <code>Stub</code> class.
+     * <p>
+     * <p>
+     * The skeleton class is parametrized by a type variable. This type variable
+     * should be instantiated with an interface. The skeleton will accept from the
+     * stub requests for calls to the methods of this interface. It will then
+     * forward those requests to an object. The object is specified when the
+     * skeleton is constructed, and must implement the remote interface. Each
+     * method in the interface should be marked as throwing
+     * <code>RMIException</code>, in addition to any other exceptions that the user
+     * desires.
+     * <p>
+     * <p>
+     * Exceptions may occur at the top level in the listening and service threads.
+     * The skeleton's response to these exceptions can be customized by deriving
+     * a class from <code>Skeleton</code> and overriding <code>listen_error</code>
+     * or <code>service_error</code>.
+     */
     private Class<T> klass;
     private T server;
     private InetSocketAddress address;
+    private Listener listener;
     private Thread listenningThread;
-    /** Creates a <code>Skeleton</code> with no initial server address. The
-        address will be determined by the system when <code>start</code> is
-        called. Equivalent to using <code>Skeleton(null)</code>.
 
-        <p>
-        This constructor is for skeletons that will not be used for
-        bootstrapping RMI - those that therefore do not require a well-known
-        port.
-
-        @param c An object representing the class of the interface for which the
-                 skeleton server is to handle method call requests.
-        @param server An object implementing said interface. Requests for method
-                      calls are forwarded by the skeleton to this object.
-        @throws Error If <code>c</code> does not represent a remote interface -
-                      an interface whose methods are all marked as throwing
-                      <code>RMIException</code>.
-        @throws NullPointerException If either of <code>c</code> or
-                                     <code>server</code> is <code>null</code>.
+    /**
+     * Creates a <code>Skeleton</code> with no initial server address. The
+     * address will be determined by the system when <code>start</code> is
+     * called. Equivalent to using <code>Skeleton(null)</code>.
+     * <p>
+     * /**
+     * Creates a <code>Skeleton</code> with no initial server address. The
+     * address will be determined by the system when <code>start</code> is
+     * called. Equivalent to using <code>Skeleton(null)</code>.
+     * <p>
+     * <p>
+     * This constructor is for skeletons that will not be used for
+     * bootstrapping RMI - those that therefore do not require a well-known
+     * port.
+     *
+     * @param c      An object representing the class of the interface for which the
+     *               skeleton server is to handle method call requests.
+     * @param server An object implementing said interface. Requests for method
+     *               calls are forwarded by the skeleton to this object.
+     * @throws Error                If <code>c</code> does not represent a remote interface -
+     *                              an interface whose methods are all marked as throwing
+     *                              <code>RMIException</code>.
+     * @throws NullPointerException If either of <code>c</code> or
+     *                              <code>server</code> is <code>null</code>.
      */
-    public Skeleton(Class<T> c, T server)
-    {
+    public Skeleton(Class<T> c, T server) {
         if (c == null || server == null) {
             throw new NullPointerException("All arguments are required");
         }
 
+        RMIHelper.validateInterface(c);
+
         this.klass = c;
         this.server = server;
-        this.address = new InetSocketAddress(7000);
     }
 
     /**
@@ -128,15 +136,12 @@ public class Skeleton<T> {
      *                              <code>server</code> is <code>null</code>.
      */
 
-    public Skeleton(Class<T> c, T server, InetSocketAddress address)
-    {
+    public Skeleton(Class<T> c, T server, InetSocketAddress address) {
         if (c == null || server == null || address == null) {
             throw new NullPointerException("All arguments are required");
         }
 
-        if (!Remote.class.isAssignableFrom(c)) {
-            throw new Error("class doesn't implement remote interface");
-        }
+        RMIHelper.validateInterface(c);
 
         this.klass = c;
         this.server = server;
@@ -211,9 +216,15 @@ public class Skeleton<T> {
      *                      or when the server has already been started and has
      *                      not since stopped.
      */
-    public synchronized void start() throws RMIException
-    {
-        listenningThread = new Thread(new Listener(this.address));
+    public synchronized void start() throws RMIException {
+        // if address was not set, create it here
+        // to pass conformance tests
+        if (address == null) {
+            this.address = new InetSocketAddress(7001);
+        }
+
+        this.listener = new Listener(this.address);
+        listenningThread = new Thread(this.listener);
         listenningThread.start();
     }
 
@@ -228,12 +239,10 @@ public class Skeleton<T> {
      * restarted.
      */
     public synchronized void stop() {
-        listenningThread.interrupt();
+        listener.stop();
         try {
             listenningThread.join();
-        }
-        catch (InterruptedException ex) {
-
+        } catch (InterruptedException ex) {
         }
     }
 
@@ -244,83 +253,112 @@ public class Skeleton<T> {
 
     private class Listener implements Runnable {
         private InetSocketAddress listeningAddress;
+        private ServerSocket listenSocket;
 
         public Listener(InetSocketAddress addr) {
             this.listeningAddress = addr;
+            int serverPort = this.listeningAddress.getPort();
+            try {
+                listenSocket = new ServerSocket(serverPort);
+            } catch (IOException e) {
+                listen_error(e);
+            }
+        }
+
+        public void stop() {
+            if (this.listenSocket != null) {
+                try {
+                    this.listenSocket.close();
+                } catch (IOException e) {
+                }
+            }
+
+            Thread.currentThread().interrupt();
         }
 
         public void run() {
-            while (!Thread.currentThread().isInterrupted()) {
-                try {
-                    int serverPort = this.listeningAddress.getPort();
-                    ServerSocket listenSocket = new ServerSocket(serverPort);
-
-                    // Server will start listening on the port
-                    while(true) {
+            try {
+                // Server will start listening on the port
+                while (!Thread.currentThread().isInterrupted()) {
+                    try {
                         Socket clientSocket = listenSocket.accept();
                         Connection connection = new Connection(clientSocket);
                         connection.start();
+                    } catch (SocketException e) {
+                        break;
                     }
                 }
-                catch(IOException e) {
-                    System.out.println("Listen :"+e.getMessage());
-                }
+            } catch (IOException e) {
+                listen_error(e);
             }
+
+            // TODO: do we need to call "stopped" here?
+            stopped(null);
         }
     }
+
     private class Connection extends Thread {
         ObjectInputStream input;
         ObjectOutputStream output;
         Socket clientSocket;
 
-        public Connection (Socket socket) {
+        public Connection(Socket socket) {
             try {
                 clientSocket = socket;
-                output = new ObjectOutputStream(clientSocket.getOutputStream());
                 input = new ObjectInputStream(clientSocket.getInputStream());
-            }
-            catch(IOException e) {
-                System.out.println("Connection:"+e.getMessage());
+                output = new ObjectOutputStream(clientSocket.getOutputStream());
+            } catch (IOException e) {
+                //e.printStackTrace();
+                //System.out.println("Connection:" + e.getMessage());
             }
         }
 
         public void run() {
+            if (this.input == null) {
+                return;
+            }
             // This is the part we parse the arguments and make method call
 
             try {
                 RMICallInfo info = (RMICallInfo) input.readObject();
+
+                if (info == null) {
+                    return;
+                }
                 //Class<?> klass = Class.forName(info.className);
 
                 Method[] allMethods = klass.getDeclaredMethods();
                 for (Method m : allMethods) {
                     String mname = m.getName();
                     // check if the method name matches the current method name
-                    if (!mname.equals(info.methodName)) continue;
+                    if (!mname.equals(info.methodName)) {
+                        continue;
+                    }
 
                     // Check if the number of parameters match
                     Type[] pType = m.getGenericParameterTypes();
-                    if (pType.length != info.args.length) continue;
 
+                    if (info.args != null && pType.length != info.args.length) {
+                        continue;
+                    }
+
+                    RMIResult result = new RMIResult();
 
                     try {
-                        Object o = m.invoke(server, info.args);
-                        output.writeObject(o);
-                        output.flush();
+                        // TODO: how to handle void result?
+                        result.value = m.invoke(server, info.args);
                         // Handle any exceptions thrown by method to be invoked.
-                    } catch (InvocationTargetException x) {
-                        // we need to throw RMI exception
-                        // TODO: throwing meaningful RMI Exception
+                    } catch (Exception e) {
+                        result.exception = e;
                     }
+
+                    output.writeObject(result);
+                    output.flush();
                 }
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 System.out.println("input read failed");
-            }
-            catch (ClassNotFoundException ex) {
+            } catch (ClassNotFoundException ex) {
                 System.out.println("This should never happen since we write our own RMICallInfo class");
-            }
-            catch (IllegalAccessException ex) {
-                System.out.println("cannot access the object");
             }
         }
     }

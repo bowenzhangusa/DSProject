@@ -3,10 +3,8 @@ package rmi;
 import java.io.*;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.net.*;
 import java.lang.reflect.Proxy;
-import java.util.HashMap;
 import java.util.Objects;
 
 /**
@@ -183,7 +181,7 @@ public abstract class Stub {
                 return toString();
             }
 
-            Object result = null;
+            RMIResult result = null;
 
             try {
                 Socket sock = new Socket(
@@ -196,7 +194,7 @@ public abstract class Stub {
                 socketOutputStream.flush();
 
                 ObjectInputStream inputStream = new ObjectInputStream(sock.getInputStream());
-                result = inputStream.readObject();
+                result = (RMIResult) inputStream.readObject();
 
                 inputStream.close();
                 sock.close();
@@ -204,11 +202,15 @@ public abstract class Stub {
                 throw new RMIException("Could not perform RMI", ex);
             }
 
-            if (result != null && result instanceof Throwable) {
-                throw (Throwable) result;
+            if (result == null) {
+                return null;
             }
 
-            return result;
+            if (result.exception != null) {
+                throw result.exception.getCause();
+            }
+
+            return result.value;
         }
 
         private static Method getObjectMethod(String name, Class... types) {
@@ -265,37 +267,12 @@ public abstract class Stub {
      */
     @SuppressWarnings("unchecked")
     private static <T> T createObject(Class<T> c, InetSocketAddress addr) {
-        validateClass(c);
+        RMIHelper.validateInterface(c);
         T obj = (T) Proxy.newProxyInstance(
                 c.getClassLoader(),
                 new Class[]{c},
                 new StubInvocationHandler(addr, c));
 
         return obj;
-    }
-
-    /**
-     * Checks whether all public methods of class
-     * throw RMIException
-     */
-    private static <T> void validateClass(Class<T> c) {
-        for (Method m : c.getDeclaredMethods()) {
-            if (!Modifier.isPublic(m.getModifiers())) {
-                continue;
-            }
-
-            boolean throwsRMI = false;
-
-            for (Class ex : m.getExceptionTypes()) {
-                if (ex.equals(RMIException.class)) {
-                    throwsRMI = true;
-                    break;
-                }
-            }
-
-            if (!throwsRMI) {
-                throw new Error("Some methods of class do not throw RMI exception");
-            }
-        }
     }
 }
