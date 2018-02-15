@@ -77,6 +77,7 @@ public class Skeleton<T> {
     private Class<T> klass;
     private T server;
     private InetSocketAddress address;
+    private Thread listenningThread;
     /** Creates a <code>Skeleton</code> with no initial server address. The
         address will be determined by the system when <code>start</code> is
         called. Equivalent to using <code>Skeleton(null)</code>.
@@ -162,6 +163,7 @@ public class Skeleton<T> {
      *              <code>null</code> if the skeleton stopped normally.
      */
     protected void stopped(Throwable cause) {
+
     }
 
     /**
@@ -211,8 +213,8 @@ public class Skeleton<T> {
      */
     public synchronized void start() throws RMIException
     {
-        new Thread(new Listener(this.address)).start();
-
+        listenningThread = new Thread(new Listener(this.address));
+        listenningThread.start();
     }
 
     /**
@@ -226,8 +228,13 @@ public class Skeleton<T> {
      * restarted.
      */
     public synchronized void stop() {
+        listenningThread.interrupt();
+        try {
+            listenningThread.join();
+        }
+        catch (InterruptedException ex) {
 
-        //throw new UnsupportedOperationException("not implemented");
+        }
     }
 
     public InetSocketAddress getAddress() {
@@ -243,18 +250,21 @@ public class Skeleton<T> {
         }
 
         public void run() {
-            try{
-                int serverPort = this.listeningAddress.getPort();
-                ServerSocket listenSocket = new ServerSocket(serverPort);
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    int serverPort = this.listeningAddress.getPort();
+                    ServerSocket listenSocket = new ServerSocket(serverPort);
 
-                // Server will start listening on the port
-                while(true) {
-                    Socket clientSocket = listenSocket.accept();
-                    Connection connection = new Connection(clientSocket);
+                    // Server will start listening on the port
+                    while(true) {
+                        Socket clientSocket = listenSocket.accept();
+                        Connection connection = new Connection(clientSocket);
+                        connection.start();
+                    }
                 }
-            }
-            catch(IOException e) {
-                System.out.println("Listen :"+e.getMessage());
+                catch(IOException e) {
+                    System.out.println("Listen :"+e.getMessage());
+                }
             }
         }
     }
@@ -268,7 +278,6 @@ public class Skeleton<T> {
                 clientSocket = socket;
                 output = new ObjectOutputStream(clientSocket.getOutputStream());
                 input = new ObjectInputStream(clientSocket.getInputStream());
-                this.start();
             }
             catch(IOException e) {
                 System.out.println("Connection:"+e.getMessage());
