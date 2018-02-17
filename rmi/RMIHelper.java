@@ -7,8 +7,11 @@ import java.lang.reflect.Modifier;
  * Contains common methods for skeleton and proxy
  */
 public class RMIHelper {
+    public final static String DEFAULT_HOST = "localhost";
+    public final static int DEFAULT_PORT = 7778;
+
     /**
-     * Checks whether all public methods of interface
+     * Checks whether all public methods of an interface
      * throw RMIException
      */
     public static <T> void validateInterface(Class<T> c) {

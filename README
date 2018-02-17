@@ -43,3 +43,8 @@ running unit tests to put the unit tests logically in the same package as the
 code they are testing.
 
 The class test.SelfTest runs some basic self-tests on the testing library.
+
+Testing the PingPong client and server:
+1. Run `java rmi/PingServerFactory` to start a server on localhost with default port (or specify host and port as 2 optional arguments)
+2. Run `java rmi/PingPongClient` (probably from another host) to do remote ping pong calls.
+3. If connectivity can be established, expect `4 Tests completed, 0 Tests failed` to be printed on client.
