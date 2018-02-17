@@ -272,6 +272,10 @@ public class Skeleton<T> {
             }
         }
 
+        /**
+         * In order to stop the listener, we need to close the socket to cause SocketException.
+         * Otherwise thread interrupt will not be visible until blocking `accept` call returns.
+         */
         public void stop() {
             if (this.listenSocket != null) {
                 try {
@@ -299,11 +303,13 @@ public class Skeleton<T> {
                 listen_error(e);
             }
 
-            // TODO: do we need to call "stopped" here?
             stopped(null);
         }
     }
 
+    /**
+     * Connection reads RMI request from a client, executes it, and sends report back
+     */
     private class Connection extends Thread {
         ObjectInputStream input;
         ObjectOutputStream output;
@@ -312,11 +318,11 @@ public class Skeleton<T> {
         public Connection(Socket socket) {
             try {
                 clientSocket = socket;
-                input = new ObjectInputStream(clientSocket.getInputStream());
                 output = new ObjectOutputStream(clientSocket.getOutputStream());
+                input = new ObjectInputStream(clientSocket.getInputStream());
             } catch (IOException e) {
-                //e.printStackTrace();
-                //System.out.println("Connection:" + e.getMessage());
+                // this happens when client socket didn't send anything (occurrs in tests).
+                // looks like this should be ignored.
             }
         }
 
@@ -324,15 +330,16 @@ public class Skeleton<T> {
             if (this.input == null) {
                 return;
             }
-            // This is the part we parse the arguments and make method call
 
+            // This is the part we parse the arguments and make method call
             try {
                 RMICallInfo info = (RMICallInfo) input.readObject();
 
                 if (info == null) {
                     return;
                 }
-                //Class<?> klass = Class.forName(info.className);
+
+                boolean methodExists = false;
 
                 Method[] allMethods = klass.getDeclaredMethods();
                 for (Method m : allMethods) {
@@ -349,12 +356,11 @@ public class Skeleton<T> {
                         continue;
                     }
 
+                    methodExists = true;
                     RMIResult result = new RMIResult();
 
                     try {
-                        // TODO: how to handle void result?
                         result.value = m.invoke(server, info.args);
-                        // Handle any exceptions thrown by method to be invoked.
                     } catch (Exception e) {
                         result.exception = e;
                     }
@@ -364,10 +370,14 @@ public class Skeleton<T> {
 
                     break;
                 }
-            } catch (IOException ex) {
-                System.out.println("input read failed");
-            } catch (ClassNotFoundException ex) {
-                System.out.println("This should never happen since we write our own RMICallInfo class");
+
+                // this edge case may happen if server and client have different versions
+                // of the same interface and some methods don't match.
+                if (!methodExists) {
+                    throw new RuntimeException("Method requested by remote client does not exist");
+                }
+            } catch (Exception ex) {
+                service_error(new RMIException(ex));
             }
         }
     }

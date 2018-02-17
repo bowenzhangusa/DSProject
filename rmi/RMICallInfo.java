@@ -2,6 +2,10 @@ package rmi;
 
 import java.io.Serializable;
 
+/**
+ * An object sent from client to host
+ * that contains class, method, and arguments to be invoked
+ */
 class RMICallInfo implements Serializable {
     public String className;
     public String methodName;

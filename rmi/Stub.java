@@ -61,11 +61,6 @@ public abstract class Stub {
             throw new IllegalStateException("Skeleton must have an address");
         }
 
-        // TODO: how to check for UnknownHostException?
-        /*if (skeleton.getAddress().isUnresolved()) {
-            throw new UnknownHostException("Unknown skeleton host");
-        }*/
-
         return createObject(c, skeleton.getAddress());
     }
 
@@ -235,6 +230,7 @@ public abstract class Stub {
 
             StubInvocationHandler otherProxy = (StubInvocationHandler) Proxy.getInvocationHandler(other);
 
+            // if both addresses are not null, compare them
             if (otherProxy.remoteAddress != null && this.remoteAddress != null) {
                 if (!otherProxy.remoteAddress.equals(this.remoteAddress)) {
                     return false;
@@ -268,11 +264,9 @@ public abstract class Stub {
     @SuppressWarnings("unchecked")
     private static <T> T createObject(Class<T> c, InetSocketAddress addr) {
         RMIHelper.validateInterface(c);
-        T obj = (T) Proxy.newProxyInstance(
+        return (T) Proxy.newProxyInstance(
                 c.getClassLoader(),
                 new Class[]{c},
                 new StubInvocationHandler(addr, c));
-
-        return obj;
     }
 }
