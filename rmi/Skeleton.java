@@ -188,7 +188,13 @@ public class Skeleton<T> {
      * connections, <code>false</code> if the server is to shut down.
      */
     protected boolean listen_error(Exception exception) {
-        return false;
+        System.out.println("Exception while listening for client calls");
+        exception.printStackTrace();
+        stop();
+
+        // this happens if listening socket could not be created;
+        // cant resume server then.
+        return !(exception instanceof IOException);
     }
 
     /**
@@ -200,6 +206,8 @@ public class Skeleton<T> {
      * @param exception The exception that occurred.
      */
     protected void service_error(RMIException exception) {
+        System.out.println("Exception while servicing client call");
+        exception.printStackTrace();
     }
 
     /**
@@ -217,9 +225,8 @@ public class Skeleton<T> {
      *                      not since stopped.
      */
     public synchronized void start() throws RMIException {
-        // if address was not set, create it here
-        // to pass conformance tests
         if (address == null) {
+            // this port is not taken by any tests
             this.address = new InetSocketAddress(7001);
         }
 
@@ -354,6 +361,8 @@ public class Skeleton<T> {
 
                     output.writeObject(result);
                     output.flush();
+
+                    break;
                 }
             } catch (IOException ex) {
                 System.out.println("input read failed");

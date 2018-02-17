@@ -1,5 +1,5 @@
 package rmi;
 
-interface PingPongServerInterface {
+interface PingPongServer {
     String ping(int idNumber) throws RMIException;
 }
