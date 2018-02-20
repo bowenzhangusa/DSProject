@@ -38,4 +38,23 @@ public class RMIHelper {
             }
         }
     }
+
+    /**
+     * Checks if two class types are compatible
+     */
+    public static boolean isCompatible(Class klass1, Object obj) {
+        if (!klass1.isPrimitive()) {
+            return klass1.isInstance(obj);
+        }
+
+        // We need to check primitive type because Java reflection API doesn't do autoboxing
+        return (klass1 == Integer.TYPE && Integer.class.isInstance(obj)) ||
+              (klass1 == Boolean.TYPE && Boolean.class.isInstance(obj)) ||
+              (klass1 == Byte.TYPE && Byte.class.isInstance(obj)) ||
+              (klass1 == Character.TYPE && Character.class.isInstance(obj)) ||
+              (klass1 == Float.TYPE && Float.class.isInstance(obj)) ||
+              (klass1 == Long.TYPE && Long.class.isInstance(obj)) ||
+              (klass1 == Short.TYPE && Short.class.isInstance(obj)) ||
+              (klass1 == Double.TYPE && Double.class.isInstance(obj));
+    }
 }

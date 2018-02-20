@@ -350,11 +350,22 @@ public class Skeleton<T> {
                     }
 
                     // Check if the number of parameters match
-                    Type[] pType = m.getGenericParameterTypes();
+                    Class[] pClass = m.getParameterTypes();
 
-                    if (info.args != null && pType.length != info.args.length) {
+                    if (info.args != null && pClass.length != info.args.length) {
                         continue;
                     }
+
+                    boolean paramsMatch = true;
+                    for (int i = 0; i < pClass.length; i++) {
+                        Class klass = pClass[i];
+                        if (!RMIHelper.isCompatible(klass, info.args[i])) {
+                            paramsMatch = false;
+                            break;
+                        }
+                    }
+
+                    if (!paramsMatch) continue;
 
                     methodExists = true;
                     RMIResult result = new RMIResult();
