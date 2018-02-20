@@ -46,6 +46,17 @@ public class StubUnitTest extends Test {
             throw new TestFailed("Unexpected result from RMI: " + result);
         }
 
+        // do the same with overloaded method
+        try {
+            result = stub.ping(14.736);
+
+        } catch (Throwable e) {
+            throw new TestFailed("this should not throw exceptions", e);
+        }
+        if (!result.equals("Pong double 14.736")) {
+            throw new TestFailed("Unexpected result from RMI: " + result);
+        }
+
         skeleton.stop();
     }
 }

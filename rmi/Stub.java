@@ -156,7 +156,6 @@ public abstract class Stub {
         private static final Method OBJECT_TOSTRING =
                 getObjectMethod("toString");
 
-
         public <T> StubInvocationHandler(InetSocketAddress addr, Class<T> c) {
             this.remoteAddress = addr;
             this.originalClass = c;

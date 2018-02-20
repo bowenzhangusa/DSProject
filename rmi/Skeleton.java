@@ -190,11 +190,15 @@ public class Skeleton<T> {
     protected boolean listen_error(Exception exception) {
         System.out.println("Exception while listening for client calls");
         exception.printStackTrace();
-        stop();
 
-        // this happens if listening socket could not be created;
-        // cant resume server then.
-        return !(exception instanceof IOException);
+        if (exception instanceof IOException) {
+            // this happens if listening socket could not be created;
+            // cant resume server then.
+            stop();
+            return false;
+        } else {
+            return true;
+        }
     }
 
     /**
@@ -226,8 +230,7 @@ public class Skeleton<T> {
      */
     public synchronized void start() throws RMIException {
         if (address == null) {
-            // this port is not taken by any tests
-            this.address = new InetSocketAddress(7001);
+            this.address = new InetSocketAddress(RMIHelper.DEFAULT_PORT);
         }
 
         this.listener = new Listener(this.address);
