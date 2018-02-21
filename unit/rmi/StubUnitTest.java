@@ -6,6 +6,7 @@ import test.TestFailed;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.util.HashMap;
 
 public class StubUnitTest extends Test {
     /**
@@ -54,6 +55,18 @@ public class StubUnitTest extends Test {
             throw new TestFailed("this should not throw exceptions", e);
         }
         if (!result.equals("Pong double 14.736")) {
+            throw new TestFailed("Unexpected result from RMI: " + result);
+        }
+
+        // pass a HashMap to a method that accepts Map interface
+        try {
+            HashMap<String, Integer> arg = new HashMap<String, Integer>();
+            arg.put("a", 1);
+            result = stub.methodThatAcceptsInterface(arg);
+        } catch (Throwable e) {
+            throw new TestFailed("this should not throw exceptions", e);
+        }
+        if (!result.equals("ok")) {
             throw new TestFailed("Unexpected result from RMI: " + result);
         }
 
